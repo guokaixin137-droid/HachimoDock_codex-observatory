@@ -168,6 +168,10 @@ def worker(base, codex, explicit):
         if explicit:
             os.environ["HACHIMODOCK_MANAGER"] = str(explicit)
         bridge.main(["--codex-dir", str(codex), "--health-file", str(path)])
+    except bridge.CollectorAlreadyRunning:
+        # A logon trigger can overlap the worker started by the installer.
+        # The lock owner continues writing its own heartbeat.
+        return
     except Exception as error:
         bridge.write_health(path, "error", error)
         raise

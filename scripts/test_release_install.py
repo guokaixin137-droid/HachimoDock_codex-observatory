@@ -197,6 +197,8 @@ def main():
         if removed["registered"] or removed["running"] or not removed["componentImported"]:
             raise RuntimeError(f"Unexpected state after collector removal: {removed}")
         print("Verified reinstall, moving the download, and stopping the login service.", flush=True)
+    if sys.argv[1:2] == ["--standard-desktop"]:
+        (workspace / "acceptance-complete.txt").write_text("passed", encoding="ascii")
 
 
 if __name__ == "__main__":

@@ -16,29 +16,46 @@ $name = 'HachimoDock Codex Observatory ' + $identity.User.Value
 $owner = 'HachimoDock Codex Observatory local collector'
 $task = Get-ScheduledTask -TaskPath '\' -TaskName $name -ErrorAction SilentlyContinue
 if ($task -and $task.Description -ne $owner) { throw 'A different task already uses this name.' }
-function Stop-CollectorTask {
-    if ($task -and $task.State -eq 'Running') {
-        $previous = $null
-        if ($env:HACHI_OBS_PID) {
-            $process = Get-Process -Id ([int]$env:HACHI_OBS_PID) -ErrorAction SilentlyContinue
-            if ($process -and $process.Path -eq $task.Actions[0].Execute) { $previous = $process }
+function Get-CollectorProcess([switch]$All) {
+    if (-not $task -or $task.Actions.Count -ne 1) { return }
+    $action = $task.Actions[0]
+    if ($All) { $filter = "Name='pythonw.exe'" }
+    elseif ($env:HACHI_OBS_PID -match '^[1-9][0-9]*$') { $filter = 'ProcessId=' + $env:HACHI_OBS_PID }
+    else { return }
+    foreach ($row in (Get-CimInstance Win32_Process -Filter $filter)) {
+        if ($row.ExecutablePath -ne $action.Execute -or -not $row.CommandLine -or
+            -not $row.CommandLine.EndsWith(' ' + $action.Arguments, [StringComparison]::Ordinal)) { continue }
+        $account = Invoke-CimMethod -InputObject $row -MethodName GetOwnerSid -ErrorAction SilentlyContinue
+        if ($account.Sid -eq $identity.User.Value) {
+            $proc = Get-Process -Id $row.ProcessId -ErrorAction SilentlyContinue
+            if ($proc -and $proc.Path -eq $action.Execute) { $proc }
         }
-        Stop-ScheduledTask -InputObject $task
-        for ($index = 0; $index -lt 50; $index++) {
-            $state = (Get-ScheduledTask -TaskPath '\' -TaskName $name).State
-            if ($state -ne 'Running' -and (-not $previous -or $previous.HasExited)) { return }
-            Start-Sleep -Milliseconds 200
-        }
-        throw 'Timed out stopping the existing collector task.'
     }
+}
+function Stop-CollectorTask {
+    if (-not $task) { return }
+    $processes = @(Get-CollectorProcess -All)
+    if ($task.State -eq 'Running') { Stop-ScheduledTask -InputObject $task }
+    foreach ($proc in $processes) {
+        if (-not $proc.HasExited) {
+            try { $proc.Kill() } catch [InvalidOperationException] { }
+            if (-not $proc.WaitForExit(5000)) { throw 'Timed out stopping the existing collector process.' }
+        }
+    }
+    for ($index = 0; $index -lt 50; $index++) {
+        if ((Get-ScheduledTask -TaskPath '\' -TaskName $name).State -ne 'Running') { return }
+        Start-Sleep -Milliseconds 200
+    }
+    throw 'Timed out stopping the existing collector task.'
+}
+function Start-CollectorNow($action) {
+    # Task Scheduler handles future logons. Start in the caller's session now,
+    # including when an agent is running under a secondary Windows logon.
+    Start-Process -FilePath $action.Execute -ArgumentList $action.Arguments -WindowStyle Hidden
 }
 switch ($env:HACHI_OBS_OPERATION) {
     'status' {
-        $live = $false
-        if ($task -and $task.State -eq 'Running' -and $env:HACHI_OBS_PID) {
-            $proc = Get-Process -Id ([int]$env:HACHI_OBS_PID) -ErrorAction SilentlyContinue
-            $live = [bool]($proc -and $proc.Path -and $proc.Path -eq $task.Actions[0].Execute)
-        }
+        $live = @(Get-CollectorProcess).Count -gt 0
         $result = @{registered=[bool]$task; running=$live; state=[string]$task.State}
         if ($env:HACHI_OBS_PYTHON) {
             $result.sameAction = [bool]($task -and $task.Actions.Count -eq 1 -and
@@ -61,7 +78,7 @@ switch ($env:HACHI_OBS_OPERATION) {
         $principal = New-ScheduledTaskPrincipal -UserId $identity.Name -LogonType Interactive -RunLevel Limited
         $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -StartWhenAvailable -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
         $null = Register-ScheduledTask -TaskPath '\' -TaskName $name -Description $owner -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force
-        Start-ScheduledTask -TaskPath '\' -TaskName $name
+        Start-CollectorNow $action
     }
     'remove' {
         if ($task) {
@@ -74,7 +91,8 @@ switch ($env:HACHI_OBS_OPERATION) {
         if ($task) { Unregister-ScheduledTask -InputObject $task -Confirm:$false }
         $xml = [IO.File]::ReadAllText($env:HACHI_OBS_BACKUP)
         $null = Register-ScheduledTask -TaskPath '\' -TaskName $name -Xml $xml -Force
-        Start-ScheduledTask -TaskPath '\' -TaskName $name
+        $restored = Get-ScheduledTask -TaskPath '\' -TaskName $name
+        Start-CollectorNow $restored.Actions[0]
     }
 }
 # Get-ScheduledTask reports a non-terminating error for an absent entry on
