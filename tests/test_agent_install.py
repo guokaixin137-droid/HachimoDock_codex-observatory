@@ -74,6 +74,18 @@ class AgentInstallerTests(unittest.TestCase):
                         windows_service.install(self.root, self.root, self.root, None)
                 self.assertEqual(actions, ["save", "install", "restore" if existing else "remove"])
 
+    def test_reinstall_reuses_exact_healthy_windows_task(self):
+        health = self.root / "health.json"
+        manage.bridge.write_health(health, "ready")
+        with patch.object(windows_service, "task", return_value={
+            "running": True, "registered": True, "sameAction": True,
+        }) as api:
+            self.assertTrue(windows_service.install(self.root, self.root, self.root, None)["dataReady"])
+        self.assertEqual(api.call_count, 1)
+        self.assertEqual(api.call_args.args, ("status",))
+        self.assertEqual(api.call_args.kwargs["python"], self.root / "runtime/pythonw.exe")
+        self.assertIn("--codex-dir", api.call_args.kwargs["args"])
+
     def test_stale_or_unavailable_worker_is_not_data_ready(self):
         health = self.root / "health.json"
         current = int(time.time() * 1000)

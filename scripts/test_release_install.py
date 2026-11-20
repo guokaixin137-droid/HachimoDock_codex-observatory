@@ -48,14 +48,14 @@ def install_official_client(system, scratch):
             subprocess.run(["hdiutil", "detach", str(mount)], check=True, timeout=60)
 
 
-def seed_codex(root):
+def seed_codex(root, inputs=42, outputs=8):
     now = datetime.now(timezone.utc)
     thread = "00000000-0000-0000-0000-000000000001"
     sessions = root / "sessions"
     sessions.mkdir(parents=True)
     rollout = sessions / f"rollout-{now:%Y-%m-%d}-{thread}.jsonl"
     record = {"type": "token_usage_record", "timestamp": now.isoformat(),
-              "payload": {"response_id": "fixture", "usage": {"input_tokens": 42, "output_tokens": 8}}}
+              "payload": {"response_id": "fixture", "usage": {"input_tokens": inputs, "output_tokens": outputs}}}
     rollout.write_text(json.dumps(record) + "\n", encoding="utf-8")
     with closing(sqlite3.connect(root / "state_5.sqlite")) as db:
         db.execute("CREATE TABLE threads(id TEXT, title TEXT, rollout_path TEXT, updated_at INTEGER)")
@@ -126,6 +126,20 @@ def wait_for_data(installer):
         time.sleep(3)
 
 
+def verify_fixture(path, inputs, outputs):
+    deadline = time.monotonic() + 30
+    while True:
+        telemetry = json.loads(path.read_bytes())["models"]["telemetry"]["value"]
+        overview = telemetry["pixel_overview"]
+        title = telemetry["detailedHome"]["v4"]
+        if (overview["v4"], overview["v5"]) == (str(inputs), str(outputs)) and title.endswith("模拟会话"):
+            print(f"Verified the Hachimodock data file: fixture title, {inputs} input, {outputs} output.", flush=True)
+            return
+        if time.monotonic() >= deadline:
+            raise RuntimeError(f"Unexpected fixture values: {overview['v4']}, {overview['v5']}, {ascii(title)}")
+        time.sleep(1)
+
+
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
@@ -150,16 +164,16 @@ def main():
         installer = install_recipe(system, scratch)
         initial = wait_for_data(installer)
         telemetry_file = desktop_data / "component-apps/codex-observatory/composition-v2-state.json"
-        telemetry = json.loads(telemetry_file.read_bytes())["models"]["telemetry"]["value"]
-        overview = telemetry["pixel_overview"]
-        title = telemetry["detailedHome"]["v4"]
-        if (overview["v4"], overview["v5"]) != ("42", "8") or not title.endswith("模拟会话"):
-            raise RuntimeError(f"Unexpected fixture values: {overview['v4']}, {overview['v5']}, {ascii(title)}")
-        print("Verified the actual Hachimodock data file: fixture title, 42 input tokens, 8 output tokens.", flush=True)
+        verify_fixture(telemetry_file, 42, 8)
         # An existing community installation should retain its selection on another install.
         repeat = run_installer(installer, "install", "--codex-dir", str(scratch / "Codex sample"))
         if repeat.get("selectedHash") != initial["selectedHash"] or not repeat.get("running"):
             raise RuntimeError("Reinstallation lost the component selection or the collector.")
+        alternate = scratch / "Other Codex history"
+        seed_codex(alternate, 18, 7)
+        run_installer(installer, "install", "--codex-dir", str(alternate))
+        wait_for_data(installer)
+        verify_fixture(telemetry_file, 18, 7)
         relocated = installer.parent.with_name(installer.parent.name + " moved")
         installer.parent.rename(relocated)
         installer = relocated / installer.name

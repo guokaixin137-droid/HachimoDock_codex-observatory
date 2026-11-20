@@ -18,9 +18,15 @@ $task = Get-ScheduledTask -TaskPath '\' -TaskName $name -ErrorAction SilentlyCon
 if ($task -and $task.Description -ne $owner) { throw 'A different task already uses this name.' }
 function Stop-CollectorTask {
     if ($task -and $task.State -eq 'Running') {
+        $previous = $null
+        if ($env:HACHI_OBS_PID) {
+            $process = Get-Process -Id ([int]$env:HACHI_OBS_PID) -ErrorAction SilentlyContinue
+            if ($process -and $process.Path -eq $task.Actions[0].Execute) { $previous = $process }
+        }
         Stop-ScheduledTask -InputObject $task
         for ($index = 0; $index -lt 50; $index++) {
-            if ((Get-ScheduledTask -TaskPath '\' -TaskName $name).State -ne 'Running') { return }
+            $state = (Get-ScheduledTask -TaskPath '\' -TaskName $name).State
+            if ($state -ne 'Running' -and (-not $previous -or $previous.HasExited)) { return }
             Start-Sleep -Milliseconds 200
         }
         throw 'Timed out stopping the existing collector task.'
@@ -33,7 +39,13 @@ switch ($env:HACHI_OBS_OPERATION) {
             $proc = Get-Process -Id ([int]$env:HACHI_OBS_PID) -ErrorAction SilentlyContinue
             $live = [bool]($proc -and $proc.Path -and $proc.Path -eq $task.Actions[0].Execute)
         }
-        ConvertTo-Json -Compress -InputObject @{registered=[bool]$task; running=$live; state=[string]$task.State}
+        $result = @{registered=[bool]$task; running=$live; state=[string]$task.State}
+        if ($env:HACHI_OBS_PYTHON) {
+            $result.sameAction = [bool]($task -and $task.Actions.Count -eq 1 -and
+                $task.Actions[0].Execute -eq $env:HACHI_OBS_PYTHON -and $task.Actions[0].Arguments -ceq $env:HACHI_OBS_ARGS)
+        }
+        if ($task) { $result.lastResult = (Get-ScheduledTaskInfo -TaskPath '\' -TaskName $name).LastTaskResult }
+        ConvertTo-Json -Compress -InputObject $result
     }
     'save' {
         if ($task) {
@@ -43,6 +55,7 @@ switch ($env:HACHI_OBS_OPERATION) {
     }
     'install' {
         Stop-CollectorTask
+        if ($task) { Unregister-ScheduledTask -InputObject $task -Confirm:$false }
         $action = New-ScheduledTaskAction -Execute $env:HACHI_OBS_PYTHON -Argument $env:HACHI_OBS_ARGS
         $trigger = New-ScheduledTaskTrigger -AtLogOn -User $identity.Name
         $principal = New-ScheduledTaskPrincipal -UserId $identity.Name -LogonType Interactive -RunLevel Limited
@@ -58,6 +71,7 @@ switch ($env:HACHI_OBS_OPERATION) {
     }
     'restore' {
         Stop-CollectorTask
+        if ($task) { Unregister-ScheduledTask -InputObject $task -Confirm:$false }
         $xml = [IO.File]::ReadAllText($env:HACHI_OBS_BACKUP)
         $null = Register-ScheduledTask -TaskPath '\' -TaskName $name -Xml $xml -Force
         Start-ScheduledTask -TaskPath '\' -TaskName $name
@@ -91,13 +105,15 @@ def read_health(path):
         return {}
 
 
-def status(health):
+def status(health, **expected_action):
     entry = read_health(health)
-    state = task("status", pid=entry.get("pid") or "")
+    state = task("status", pid=entry.get("pid") or "", **expected_action)
     at = entry.get("at")
-    fresh = bool(state["running"] and type(at) is int and 0 <= int(time.time() * 1000) - at < 20_000)
+    age = int(time.time() * 1000) - at if type(at) is int else None
+    fresh = bool(state["running"] and age is not None and 0 <= age < 20_000)
     return {**state, "collectorPhase": entry.get("phase", "unknown") if state["running"] else "stopped",
-            "dataReady": fresh and entry.get("phase") == "ready", "detail": entry.get("detail") if fresh else None}
+            "healthAgeMs": age, "dataReady": fresh and entry.get("phase") == "ready",
+            "detail": entry.get("detail") if fresh else None}
 
 
 def install(root, payload, codex, manager):
@@ -105,12 +121,21 @@ def install(root, payload, codex, manager):
     args = ["-I", "-B", "-X", "utf8", str(payload / "manage.py"), "worker", "--codex-dir", str(codex)]
     if manager:
         args.extend(["--manager", str(manager)])
+    action = {"python": payload / "runtime/pythonw.exe", "args": subprocess.list2cmdline(args)}
+    old_pid = read_health(health).get("pid") or ""
+    active_phases = ("starting", "unavailable", "ready")
+    if old_pid:
+        existing = status(health, **action)
+        age = existing["healthAgeMs"]
+        if (existing.get("sameAction") and existing["running"] and existing["collectorPhase"] in active_phases
+                and age is not None and 0 <= age < 20_000):
+            return existing
     with tempfile.TemporaryDirectory(dir=root) as tmp:
         backup = Path(tmp) / "task.xml"
         task("save", backup=backup)
         started = int(time.time() * 1000)
         try:
-            task("install", python=payload / "runtime/pythonw.exe", args=subprocess.list2cmdline(args))
+            task("install", pid=old_pid, **action)
             deadline = time.monotonic() + 30
             while time.monotonic() < deadline:
                 entry = read_health(health)
@@ -118,10 +143,12 @@ def install(root, payload, codex, manager):
                     if entry.get("phase") == "error":
                         raise RuntimeError(entry.get("detail") or "采集器启动失败。")
                     state = status(health)
-                    if state["running"] and state["collectorPhase"] in ("starting", "unavailable", "ready"):
+                    if state["running"] and state["collectorPhase"] in active_phases:
                         return state
                 time.sleep(0.35)
-            raise RuntimeError("任务未通过启动检查。如果旧版 Start.cmd 仍在采集，请关闭它后重试。")
+            state = status(health)
+            raise RuntimeError(f"任务未通过启动检查（{state.get('state')}，结果 {state.get('lastResult')}）。"
+                               "如旧版 Start.cmd 仍在采集，请关闭它后重试。")
         except Exception:
             if backup.exists():
                 task("restore", backup=backup)
