@@ -22,12 +22,17 @@ $arch = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { 
 if ($arch -ne 'AMD64') { throw "This release requires Windows x64 (found $arch)." }
 
 $name = 'codex-observatory-3.1.8-windows-x64.zip'
-$url = "https://github.com/guokaixin137-droid/HachimoDock_codex-observatory/releases/download/v3.1.8/$name"
-$expected = '632168d7067645d87b2483f5e940ba73195114dbe0dc5ecde84df9e93969cd5e'
+$release = 'https://github.com/guokaixin137-droid/HachimoDock_codex-observatory/releases/download/v3.1.8-r2'
 $work = Join-Path ([IO.Path]::GetTempPath()) ('HachimoDock Codex ' + [guid]::NewGuid().ToString('N'))
 $null = New-Item -ItemType Directory -Path $work
 $zip = Join-Path $work $name
-Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $zip
+$sums = Join-Path $work 'SHA256SUMS'
+Invoke-WebRequest -UseBasicParsing -Uri "$release/SHA256SUMS" -OutFile $sums
+$pattern = '(?m)^([a-f0-9]{64})  ' + [regex]::Escape($name) + '\r?$'
+$entries = [regex]::Matches([IO.File]::ReadAllText($sums), $pattern)
+if ($entries.Count -ne 1) { throw 'Expected exactly one release checksum for this file.' }
+$expected = $entries[0].Groups[1].Value
+Invoke-WebRequest -UseBasicParsing -Uri "$release/$name" -OutFile $zip
 $sha = [Security.Cryptography.SHA256]::Create()
 try { $actual = [BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($zip))).Replace('-', '') }
 finally { $sha.Dispose() }
@@ -62,12 +67,13 @@ if (($s.componentImported -ne $true) -or ($s.registered -ne $true) -or ($s.runni
     exit 1
   }
   name=codex-observatory-3.1.8-macos-arm64.tar.gz
-  url="https://github.com/guokaixin137-droid/HachimoDock_codex-observatory/releases/download/v3.1.8/$name"
-  expected=9dcfff6d85ffbc6ffa12304b28c47e96df7b07c5fd89f91dd77b98903a33a0bc
+  release=https://github.com/guokaixin137-droid/HachimoDock_codex-observatory/releases/download/v3.1.8-r2
   work=$(mktemp -d "${TMPDIR:-/tmp}/HachimoDock Codex.XXXXXXXX")
   cd "$work"
-  curl --fail --location --retry 3 --silent --show-error "$url" -o "$name"
-  printf '%s  %s\n' "$expected" "$name" | /usr/bin/shasum -a 256 -c -
+  curl --fail --location --retry 3 --silent --show-error "$release/SHA256SUMS" -o SHA256SUMS
+  awk -v file="$name" 'NF == 2 && $2 == file { print; n++ } END { if (n != 1) exit 1 }' SHA256SUMS > selected.sha256
+  curl --fail --location --retry 3 --silent --show-error "$release/$name" -o "$name"
+  /usr/bin/shasum -a 256 -c selected.sha256
   mkdir payload
   /usr/bin/tar -xzf "$name" -C payload
   installer="$work/payload/install-macos.command"
