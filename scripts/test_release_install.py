@@ -73,13 +73,13 @@ def install_recipe(system, scratch):
     script = scratch / ("recipe.ps1" if system == "windows" else "recipe.sh")
     script.write_text(commands.group(1) + "\n", encoding="utf-8-sig" if system == "windows" else "utf-8")
     if system == "windows":
-        # Read the documented commands in the system's native Windows PowerShell 5.1.
+        # The hosted runner starts elevated. Exercise a normal desktop user's token.
         args = ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
-                "[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); "
-                "& ([ScriptBlock]::Create([IO.File]::ReadAllText($env:HACHI_TEST_RECIPE)))"]
+                "& ([ScriptBlock]::Create([IO.File]::ReadAllText($env:HACHI_TEST_WRAPPER)))"]
     else:
         args = ["/bin/sh", str(script)]
     env = {**os.environ, "HACHI_CODEX_DIR": str(scratch / "Codex sample"), "HACHI_TEST_RECIPE": str(script)}
+    env["HACHI_TEST_WRAPPER"] = str(REPO / "scripts/run_windows_recipe.ps1")
     run = subprocess.run(args, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                          encoding="utf-8", errors="replace", timeout=360)
     print(run.stdout, flush=True)
