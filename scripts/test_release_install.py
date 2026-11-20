@@ -71,7 +71,13 @@ def install_recipe(system, scratch):
     if not commands:
         raise RuntimeError(f"Missing {system} recipe in AGENTS.md")
     script = scratch / ("recipe.ps1" if system == "windows" else "recipe.sh")
-    script.write_text(commands.group(1) + "\n", encoding="utf-8-sig" if system == "windows" else "utf-8")
+    recipe = commands.group(1)
+    if system == "windows":
+        marker = "$installer = Join-Path $payload"
+        assert recipe.count(marker) == 1
+        recipe = recipe.replace(marker,
+            "Copy-Item -LiteralPath $env:HACHI_CANDIDATE_TASK -Destination (Join-Path $payload 'pc/windows_service.py')\n" + marker)
+    script.write_text(recipe + "\n", encoding="utf-8-sig" if system == "windows" else "utf-8")
     if system == "windows":
         # Read the documented commands in the system's native Windows PowerShell 5.1.
         args = ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
@@ -80,6 +86,7 @@ def install_recipe(system, scratch):
     else:
         args = ["/bin/sh", str(script)]
     env = {**os.environ, "HACHI_CODEX_DIR": str(scratch / "Codex sample"), "HACHI_TEST_RECIPE": str(script)}
+    env["HACHI_CANDIDATE_TASK"] = str(REPO / "pc/windows_service.py")
     run = subprocess.run(args, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                          encoding="utf-8", errors="replace", timeout=360)
     print(run.stdout, flush=True)
