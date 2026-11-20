@@ -39,17 +39,16 @@ foreach ($item in Get-ChildItem Env:HACHI_*) { $settings[$item.Name] = $item.Val
 [IO.File]::WriteAllText($context, (ConvertTo-Json $settings))
 function Quote-Value([string]$value) { "'" + $value.Replace("'", "''") + "'" }
 $command = '& ([ScriptBlock]::Create([IO.File]::ReadAllText(' + (Quote-Value $env:HACHI_TEST_WRAPPER) + '))) ' + (Quote-Value $context)
-$action = New-ScheduledTaskAction -Execute (Join-Path $PSHOME 'powershell.exe') -Argument ('-NoProfile -NonInteractive -Command "' + $command + '"')
-$name = 'HachimoDock installer test ' + [guid]::NewGuid().ToString('N')
-$limited = New-ScheduledTaskPrincipal -UserId $identity.Name -LogonType Interactive -RunLevel Limited
-$null = Register-ScheduledTask -TaskName $name -Action $action -Principal $limited
-try {
-    Start-ScheduledTask -TaskName $name
-    $deadline = (Get-Date).AddMinutes(4)
-    while (-not [IO.File]::Exists($done) -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 1 }
-    if ([IO.File]::Exists($output)) { [Console]::Write([IO.File]::ReadAllText($output)) }
-    if (-not [IO.File]::Exists($done)) { throw "Desktop task did not complete: $((Get-ScheduledTaskInfo -TaskName $name).LastTaskResult)" }
-    if ([IO.File]::ReadAllText($done).Trim() -ne '0') { throw 'The standard-user installation failed.' }
-} finally {
-    Unregister-ScheduledTask -TaskName $name -Confirm:$false
-}
+$entry = Join-Path $scratch 'start-standard.cmd'
+$line = '"' + (Join-Path $PSHOME 'powershell.exe') + '" -NoProfile -NonInteractive -Command "' + $command + '"'
+[IO.File]::WriteAllText($entry, "@echo off`r`n" + $line + "`r`n", [Text.Encoding]::ASCII)
+# Hosted images can disable UAC splitting. Request the built-in Basic User
+# level explicitly and verify the resulting identity in the child above.
+$runAs = Join-Path $env:SystemRoot 'System32/runas.exe'
+& $runAs /trustlevel:0x20000 ('cmd.exe /d /c ""' + $entry + '""')
+if ($LASTEXITCODE -ne 0) { throw "Windows could not start the standard user test ($LASTEXITCODE)." }
+$deadline = (Get-Date).AddMinutes(4)
+while (-not [IO.File]::Exists($done) -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 1 }
+if ([IO.File]::Exists($output)) { [Console]::Write([IO.File]::ReadAllText($output)) }
+if (-not [IO.File]::Exists($done)) { throw 'The standard-user desktop test did not complete.' }
+if ([IO.File]::ReadAllText($done).Trim() -ne '0') { throw 'The standard-user installation failed.' }
