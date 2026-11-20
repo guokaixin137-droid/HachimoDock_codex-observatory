@@ -13,6 +13,7 @@ MAC = "f15ec3d15460dd66c2eb88639b152cd9040e7d1ece11e38bf89e8f53f0171e02"
 WIN = "3c01d7cfc666f746a6f064f60fb2156ab0ec464d3d738ab796371a46a9bb24a2"
 VERSION = "3.1.8"
 COMMON = ["README.md", "AGENTS.md", "THIRD_PARTY.md", "manage.py", "codex-observatory.hachiapp", "zones/Asia/Shanghai"]
+COMMON += ["docs/images/dashboard-home.png", "docs/images/dashboard-quota.png"]
 PC = ["activity_view", "bridge", "codex_view", "collect", "heatmap", "home_view", "install_bridge", "manager",
       "page_feed", "quota_layout", "recent_chats", "rollouts", "weather", "windows_service"]
 COMMON += ["pc/" + module + ".py" for module in PC]

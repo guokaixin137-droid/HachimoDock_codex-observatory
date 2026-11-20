@@ -10,6 +10,7 @@ import time
 TASK_API = r"""
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
+$env:PSModulePath = [IO.Path]::Combine($PSHOME, 'Modules') + ';' + $env:PSModulePath
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $name = 'HachimoDock Codex Observatory ' + $identity.User.Value
 $owner = 'HachimoDock Codex Observatory local collector'
@@ -62,6 +63,9 @@ switch ($env:HACHI_OBS_OPERATION) {
         Start-ScheduledTask -TaskPath '\' -TaskName $name
     }
 }
+# Get-ScheduledTask reports a non-terminating error for an absent entry on
+# first install. Only a terminating error should fail the completed operation.
+exit 0
 """
 
 
@@ -73,7 +77,8 @@ def task(operation, **values):
                             capture_output=True, env=env, timeout=45,
                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     if result.returncode:
-        raise RuntimeError(result.stderr.decode("utf-8", errors="replace").strip()[:1000] or "Windows 任务计划程序操作失败。")
+        detail = (result.stderr.strip() or result.stdout.strip()).decode("utf-8", errors="replace")
+        raise RuntimeError(f"Windows 任务计划程序 {operation} 失败（{result.returncode}）。{detail[:1000]}")
     if operation == "status":
         return json.loads(result.stdout)
 
