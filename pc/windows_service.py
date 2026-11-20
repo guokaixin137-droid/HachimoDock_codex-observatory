@@ -19,16 +19,19 @@ if ($task -and $task.Description -ne $owner) { throw 'A different task already u
 function Get-CollectorProcess([switch]$All) {
     if (-not $task -or $task.Actions.Count -ne 1) { return }
     $action = $task.Actions[0]
-    if ($All) { $filter = "Name='pythonw.exe'" }
-    elseif ($env:HACHI_OBS_PID -match '^[1-9][0-9]*$') { $filter = 'ProcessId=' + $env:HACHI_OBS_PID }
+    if ($All) { $candidates = @(Get-Process -Name pythonw -ErrorAction SilentlyContinue) }
+    elseif ($env:HACHI_OBS_PID -match '^[1-9][0-9]*$') {
+        $candidates = @(Get-Process -Id $env:HACHI_OBS_PID -ErrorAction SilentlyContinue)
+    }
     else { return }
-    foreach ($row in (Get-CimInstance Win32_Process -Filter $filter)) {
-        if ($row.ExecutablePath -ne $action.Execute -or -not $row.CommandLine -or
-            -not $row.CommandLine.EndsWith(' ' + $action.Arguments, [StringComparison]::Ordinal)) { continue }
-        $account = Invoke-CimMethod -InputObject $row -MethodName GetOwnerSid -ErrorAction SilentlyContinue
-        if ($account.Sid -eq $identity.User.Value) {
-            $proc = Get-Process -Id $row.ProcessId -ErrorAction SilentlyContinue
-            if ($proc -and $proc.Path -eq $action.Execute) { $proc }
+    foreach ($proc in $candidates) {
+        if ($proc.Path -ne $action.Execute) { continue }
+        # The heartbeat belongs to this user's installed collector. Basic users
+        # can query their process directly even when WMI hides ExecutablePath.
+        if ($proc.Id.ToString() -eq $env:HACHI_OBS_PID) { $proc; continue }
+        $row = Get-CimInstance Win32_Process -Filter ('ProcessId=' + $proc.Id) -ErrorAction SilentlyContinue
+        if ($row.CommandLine -and $row.CommandLine.EndsWith(' ' + $action.Arguments, [StringComparison]::Ordinal)) {
+            $proc
         }
     }
 }
@@ -47,11 +50,6 @@ function Stop-CollectorTask {
         Start-Sleep -Milliseconds 200
     }
     throw 'Timed out stopping the existing collector task.'
-}
-function Start-CollectorNow($action) {
-    # Task Scheduler handles future logons. Start in the caller's session now,
-    # including when an agent is running under a secondary Windows logon.
-    Start-Process -FilePath $action.Execute -ArgumentList $action.Arguments -WindowStyle Hidden
 }
 switch ($env:HACHI_OBS_OPERATION) {
     'status' {
@@ -78,7 +76,6 @@ switch ($env:HACHI_OBS_OPERATION) {
         $principal = New-ScheduledTaskPrincipal -UserId $identity.Name -LogonType Interactive -RunLevel Limited
         $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -StartWhenAvailable -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
         $null = Register-ScheduledTask -TaskPath '\' -TaskName $name -Description $owner -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force
-        Start-CollectorNow $action
     }
     'remove' {
         if ($task) {
@@ -92,7 +89,10 @@ switch ($env:HACHI_OBS_OPERATION) {
         $xml = [IO.File]::ReadAllText($env:HACHI_OBS_BACKUP)
         $null = Register-ScheduledTask -TaskPath '\' -TaskName $name -Xml $xml -Force
         $restored = Get-ScheduledTask -TaskPath '\' -TaskName $name
-        Start-CollectorNow $restored.Actions[0]
+        $launch = [Diagnostics.ProcessStartInfo]::new($restored.Actions[0].Execute, $restored.Actions[0].Arguments)
+        $launch.UseShellExecute = $false
+        $launch.CreateNoWindow = $true
+        [Diagnostics.Process]::Start($launch).Dispose()
     }
 }
 # Get-ScheduledTask reports a non-terminating error for an absent entry on
@@ -134,6 +134,15 @@ def status(health, **expected_action):
             "detail": entry.get("detail") if fresh else None}
 
 
+def start_worker(executable, arguments):
+    # A secondary logon can register an interactive task, but Task Scheduler
+    # cannot start it until that user's next desktop login. Run the same action
+    # in the installing user's session without inheriting the agent's pipes.
+    return subprocess.Popen([str(executable), *arguments], stdin=subprocess.DEVNULL,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=True,
+                            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
+
+
 def install(root, payload, codex, manager):
     health = root / "health.json"
     args = ["-I", "-B", "-X", "utf8", str(payload / "manage.py"), "worker", "--codex-dir", str(codex)]
@@ -154,6 +163,7 @@ def install(root, payload, codex, manager):
         started = int(time.time() * 1000)
         try:
             task("install", pid=old_pid, **action)
+            process = start_worker(action["python"], args)
             deadline = time.monotonic() + 30
             while time.monotonic() < deadline:
                 entry = read_health(health)
@@ -165,11 +175,14 @@ def install(root, payload, codex, manager):
                         return state
                 time.sleep(0.35)
             state = status(health)
-            raise RuntimeError(f"任务未通过启动检查（{state.get('state')}，结果 {state.get('lastResult')}）。"
+            entry = read_health(health)
+            raise RuntimeError(f"任务未通过启动检查（{state.get('state')}，结果 {state.get('lastResult')}，"
+                               f"进程 {process.pid} 退出码 {process.poll()}，心跳 {entry.get('pid')} / {entry.get('phase')}）。"
                                "如旧版 Start.cmd 仍在采集，请关闭它后重试。")
         except Exception:
+            last_pid = read_health(health).get("pid") or old_pid
             if backup.exists():
-                task("restore", backup=backup)
+                task("restore", backup=backup, pid=last_pid)
             else:
-                task("remove")
+                task("remove", pid=last_pid)
             raise

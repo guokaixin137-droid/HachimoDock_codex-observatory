@@ -202,7 +202,8 @@ def main():
         with (base / "install.lock").open("a+b") as guard:
             bridge.lock_collector(guard)
             if os_name == "windows":
-                windows_service.task("remove")
+                pid = windows_service.read_health(base / "health.json").get("pid") or ""
+                windows_service.task("remove", pid=pid)
             else:
                 paths = mac.locations()
                 if paths["plist"].is_file():

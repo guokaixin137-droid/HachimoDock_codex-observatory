@@ -50,8 +50,11 @@ class AgentInstallerTests(unittest.TestCase):
                 self.assertGreater(int(values["pid"]), 0)
                 return {"registered": True, "running": True}
 
-        with patch.object(windows_service, "task", side_effect=fake_task):
+        with (patch.object(windows_service, "task", side_effect=fake_task),
+              patch.object(windows_service, "start_worker") as launch):
             state = windows_service.install(self.root, payload, codex, manager)
+        self.assertEqual(launch.call_args.args[0], payload / "runtime/pythonw.exe")
+        self.assertIn(str(codex), launch.call_args.args[1])
         self.assertEqual(actions, ["save", "install", "status"])
         self.assertTrue(state["dataReady"])
 
