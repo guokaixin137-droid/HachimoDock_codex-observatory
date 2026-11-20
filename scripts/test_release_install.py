@@ -79,14 +79,13 @@ def install_recipe(system, scratch):
             "Copy-Item -LiteralPath $env:HACHI_CANDIDATE_TASK -Destination (Join-Path $payload 'pc/windows_service.py')\n" + marker)
     script.write_text(recipe + "\n", encoding="utf-8-sig" if system == "windows" else "utf-8")
     if system == "windows":
-        # The hosted runner starts elevated. Exercise a normal desktop user's token.
         args = ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
-                "& ([ScriptBlock]::Create([IO.File]::ReadAllText($env:HACHI_TEST_WRAPPER)))"]
+                "[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); "
+                "& ([ScriptBlock]::Create([IO.File]::ReadAllText($env:HACHI_TEST_RECIPE)))"]
     else:
         args = ["/bin/sh", str(script)]
     env = {**os.environ, "HACHI_CODEX_DIR": str(scratch / "Codex sample"), "HACHI_TEST_RECIPE": str(script)}
     env["HACHI_CANDIDATE_TASK"] = str(REPO / "pc/windows_service.py")
-    env["HACHI_TEST_WRAPPER"] = str(REPO / "scripts/run_windows_recipe.ps1")
     run = subprocess.run(args, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                          encoding="utf-8", errors="replace", timeout=360)
     print(run.stdout, flush=True)
@@ -143,16 +142,35 @@ def verify_fixture(path, inputs, outputs):
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
-    if (os.environ.get("GITHUB_ACTIONS") != "true" or not os.environ.get("RUNNER_TEMP")
-            or os.environ.get("RUNNER_ENVIRONMENT") == "self-hosted"):
-        raise SystemExit("This acceptance test requires a disposable GitHub-hosted runner.")
     system = {"darwin": "macos", "win32": "windows"}[sys.platform]
+    if sys.argv[1:2] == ["--standard-desktop"] and system == "windows":
+        import ctypes
+        workspace = Path(sys.argv[2]).resolve()
+        identity = subprocess.check_output(["whoami.exe"], text=True).strip().lower()
+        if (not re.fullmatch(r".+\\hachiqa[0-9a-f]{8}", identity) or ctypes.windll.shell32.IsUserAnAdmin()
+                or workspace != REPO or not workspace.name.startswith("HachimoQA-")):
+            raise RuntimeError("Expected the disposable standard Windows test user and workspace.")
+        if Path.home().name.lower() != identity.rsplit("\\", 1)[-1]:
+            raise RuntimeError(f"The test user profile did not load: {identity} / {Path.home()}")
+        print("Verified a non-administrator Windows account with its own user profile.", flush=True)
+    else:
+        if (os.environ.get("GITHUB_ACTIONS") != "true" or not os.environ.get("RUNNER_TEMP")
+                or os.environ.get("RUNNER_ENVIRONMENT") == "self-hosted"):
+            raise SystemExit("This acceptance test requires a disposable GitHub-hosted runner.")
+        workspace = Path(os.environ["RUNNER_TEMP"])
+        if system == "windows":
+            env = {**os.environ, "HACHI_TEST_PYTHON": sys.executable, "HACHI_TEST_REPO": str(REPO),
+                   "HACHI_TEST_BOOT": str(REPO / "scripts/test_windows_user.ps1")}
+            subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+                            "& ([ScriptBlock]::Create([IO.File]::ReadAllText($env:HACHI_TEST_BOOT)))"],
+                           env=env, timeout=480, check=True)
+            return
     print(f"{platform.platform()} / {platform.machine()}", flush=True)
     if (Path.home() / ".claw-pet/components/selected/codex-observatory.json").exists():
         raise RuntimeError("A fresh component library is required.")
     desktop_data = (Path(os.environ["APPDATA"]) if system == "windows" else
                     Path.home() / "Library/Application Support") / "com.petmanager.desktop"
-    with tempfile.TemporaryDirectory(dir=os.environ["RUNNER_TEMP"]) as directory:
+    with tempfile.TemporaryDirectory(dir=workspace) as directory:
         scratch = Path(directory)
         install_official_client(system, scratch)
         if system == "windows":
