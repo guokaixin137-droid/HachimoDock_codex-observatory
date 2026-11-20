@@ -1,0 +1,27 @@
+name: Desktop installation
+run-name: Verify both desktop installers
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  install:
+    name: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            python: python
+            platform: Windows x64
+          - os: macos-15
+            python: python3
+            platform: macOS arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install the public release with the official Hachimodock client
+        run: ${{ matrix.python }} scripts/test_release_install.py
