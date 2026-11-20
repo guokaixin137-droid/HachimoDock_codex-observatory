@@ -1,5 +1,6 @@
 """Run the exact AGENTS.md installation recipe on a fresh GitHub-hosted desktop."""
 import hashlib
+from contextlib import closing
 import json
 import os
 from pathlib import Path
@@ -56,10 +57,11 @@ def seed_codex(root):
     record = {"type": "token_usage_record", "timestamp": now.isoformat(),
               "payload": {"response_id": "fixture", "usage": {"input_tokens": 42, "output_tokens": 8}}}
     rollout.write_text(json.dumps(record) + "\n", encoding="utf-8")
-    with sqlite3.connect(root / "state_5.sqlite") as db:
+    with closing(sqlite3.connect(root / "state_5.sqlite")) as db:
         db.execute("CREATE TABLE threads(id TEXT, title TEXT, rollout_path TEXT, updated_at INTEGER)")
         db.execute("INSERT INTO threads VALUES (?,?,?,?)",
-                   (thread, "Desktop release fixture", str(rollout), int(now.timestamp())))
+                   (thread, "模拟会话", str(rollout), int(now.timestamp())))
+        db.commit()
 
 
 def install_recipe(system, scratch):
@@ -136,8 +138,9 @@ def main():
         telemetry_file = desktop_data / "component-apps/codex-observatory/composition-v2-state.json"
         telemetry = json.loads(telemetry_file.read_bytes())["models"]["telemetry"]["value"]
         overview = telemetry["pixel_overview"]
-        if (overview["v4"], overview["v5"]) != ("42", "8") or "Desktop release fixture" not in json.dumps(telemetry):
-            raise RuntimeError("The collector did not deliver the expected fixture title and token counts.")
+        title = telemetry["detailedHome"]["v4"]
+        if (overview["v4"], overview["v5"]) != ("42", "8") or not title.endswith("模拟会话"):
+            raise RuntimeError(f"Unexpected fixture values: {overview['v4']}, {overview['v5']}, {ascii(title)}")
         print("Verified the actual Hachimodock data file: fixture title, 42 input tokens, 8 output tokens.", flush=True)
         # An existing community installation should retain its selection on another install.
         repeat = run_installer(installer, "install", "--codex-dir", str(scratch / "Codex sample"))

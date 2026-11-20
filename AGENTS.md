@@ -28,9 +28,13 @@ $work = Join-Path ([IO.Path]::GetTempPath()) ('HachimoDock Codex ' + [guid]::New
 $null = New-Item -ItemType Directory -Path $work
 $zip = Join-Path $work $name
 Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $zip
-if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash -ne $expected) { throw 'Release checksum mismatch.' }
+$sha = [Security.Cryptography.SHA256]::Create()
+try { $actual = [BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($zip))).Replace('-', '') }
+finally { $sha.Dispose() }
+if ($actual -ne $expected) { throw 'Release checksum mismatch.' }
 $payload = Join-Path $work 'payload'
-Expand-Archive -LiteralPath $zip -DestinationPath $payload
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[IO.Compression.ZipFile]::ExtractToDirectory($zip, $payload)
 $installer = Join-Path $payload 'install-windows.cmd'
 Write-Output "INSTALLER_PATH=$installer"
 $extra = @()

@@ -1,35 +1,68 @@
+<div align="center">
+
 # HachimoDock · Codex 仪表盘
 
-在 Pico 上查看本机最近三条 Codex 对话的标题与状态、今天及近七天的 Token 用量，以及最近记录的剩余额度和重置时间。短按 SW1 切换额度与历史页。
+**Codex 在等你回复吗？今天用了多少 Token？抬眼看一下 Pico。**
 
-## 把这句话发给电脑上的 Agent
+[让 Codex 安装](#让-codex-安装) · [看看两个页面](#两个页面) · [下载安装包](https://github.com/guokaixin137-droid/HachimoDock_codex-observatory/releases/tag/v3.1.8)
 
-> 请从 https://github.com/guokaixin137-droid/HachimoDock_codex-observatory 安装 Codex 仪表盘。按仓库里的 AGENTS.md 选择本机安装包，安装登录后自动运行的采集器，把组件导入 Hachimodock，并检查数据是否就绪。如果 Pico 已连接，请通过管理端完成同步并告诉我结果。
+[![Windows 与 macOS 安装验收](https://github.com/guokaixin137-droid/HachimoDock_codex-observatory/actions/workflows/desktop-install.yml/badge.svg?branch=main)](https://github.com/guokaixin137-droid/HachimoDock_codex-observatory/actions/workflows/desktop-install.yml)
 
-请在平时运行 **Codex 和 Hachimodock 的那台电脑**上发给能操作本机的 Agent。支持 Windows x64 和 Apple 芯片 Mac。两个发行包均内置 Python。已核对 Hachimodock 0.1.230、0.1.232、0.1.237、0.1.241 和 0.1.245 的组件数据格式。
+</div>
 
-## 自己安装
+## 让 Codex 安装
 
-1. 打开 Hachimodock，用 USB 连接 Pico。从 [v3.1.8 下载页](https://github.com/guokaixin137-droid/HachimoDock_codex-observatory/releases/tag/v3.1.8) 选对应系统的包，完整解压。
-2. 在解压目录运行下表的安装命令。安装器会把组件导入「我的组件」，同时安装当前用户的后台采集器。之后登录电脑会自动启动。
-3. 在 Hachimodock 打开「组件中心 → 我的组件 → Codex仪表盘」，选择「保存并同步」。在 Pico 上打开仪表盘即可。使用时保持管理端与 Pico 连接。
+在**平时运行 Codex 的那台电脑**上，打开能执行本机命令的 Codex，把下面整段发给它。支持 **Windows x64** 和 **Apple 芯片 Mac**。两个安装包都自带 Python。
 
-| 操作 | Windows（PowerShell） | Mac（终端） |
+```text
+请帮我在这台电脑上安装 HachimoDock 的 Codex 仪表盘。
+仓库 https://github.com/guokaixin137-droid/HachimoDock_codex-observatory
+请按 AGENTS.md 执行我这个系统的安装命令，把组件和后台采集器一起装好。
+请检查组件已导入、采集器已启动，并告诉我是否读到了本机 Codex 数据。
+如果 Pico 已连接，也请帮我在 Hachimodock 里完成同步。
+```
+
+电脑端装好后，组件会出现在 Hachimodock 的「我的组件」，采集器会在登录时自动启动。首次传到 Pico 时，用 USB 连接设备，在「组件中心 → 我的组件 → Codex仪表盘」点 **保存并同步**。如果 Pico 已经显示「等待采集器连接」，可以直接用上面这段话补装或检查电脑端。[Codex 安装与验收指南](AGENTS.md)
+
+## 两个页面
+
+| **首页 · 会话与用量** | **按 SW1 · 额度与历史** |
+| :---: | :---: |
+| [![首页示例，最近三条 Codex 对话、今日 Token 和七天趋势](docs/images/dashboard-home.png)](docs/images/dashboard-home.png) | [![Pico 额度页，剩余百分比、下次重置时间和近 53 周活动热力图](docs/images/dashboard-quota.png)](docs/images/dashboard-quota.png) |
+
+- **对话进度**　最近三条对话各有状态。能一眼看到哪条在思考、哪条等你答复，以及哪条已经完成、停止或出错。
+- **Token 用量**　首页显示今天的输入、输出和总量，柱状图方便对照最近七天。第二页还会汇总这七天的用量。
+- **额度与活动**　查看 Codex 最近记录的剩余额度、下次重置时间，以及近 53 周的本机活动热力图。
+- **时间与天气**　首页顶栏显示日期、时间和城市天气。城市跟随 Hachimodock 的所在地设置，关闭定位可停用天气查询。
+
+## 手动安装与排查
+
+| 你的电脑 | 完整安装包 | 解压后运行 |
 | --- | --- | --- |
-| 检查安装条件 | `.\install-windows.cmd check` | `./install-macos.command check` |
-| 安装或重新安装 | `.\install-windows.cmd install` | `./install-macos.command install` |
-| 查看状态 | `.\install-windows.cmd status` | `./install-macos.command status` |
-| 停止采集并移除登录启动项 | `.\install-windows.cmd remove` | `./install-macos.command remove` |
+| Windows x64 | [下载 Windows ZIP](https://github.com/guokaixin137-droid/HachimoDock_codex-observatory/releases/download/v3.1.8/codex-observatory-3.1.8-windows-x64.zip) | `.\install-windows.cmd install` |
+| Apple 芯片 Mac | [下载 macOS 压缩包](https://github.com/guokaixin137-droid/HachimoDock_codex-observatory/releases/download/v3.1.8/codex-observatory-3.1.8-macos-arm64.tar.gz) | `./install-macos.command install` |
 
-## 如何判断安装成功
+两个包都包含设备组件和电脑采集器。先在同一台电脑安装 Hachimodock，然后完整解压。安装命令也支持 `check` 检查环境、`status` 查看状态、`remove` 停用采集器并移除登录启动项。[Hachimodock 官方客户端](https://github.com/ai-maker-lab/HachimoDock/releases/tag/v0.1.245)
 
-- `componentImported` 为 `true` 表示电脑上的组件库已选中对应版本。`running` 为 `true` 表示采集器正在运行。`dataReady` 为 `true` 表示最近一次采集已读到本机数据。
-- 首次扫描大量历史可能需要几分钟。若提示没有可读的历史，请在这台电脑的 Codex 完成一次对话。自定义历史目录可通过 `CODEX_HOME` 或安装命令的 `--codex-dir` 指定。Windows 发行包面向 Windows 本机保存的记录。
-- `deviceSync: not_checked` 表示命令行没有读取 Pico 的同步回执。请以 Hachimodock 的同步结果为准。如果详情提供「准备采集器契约」，可在导入或更新后点一次。旧管理端同时刷新和翻页时可能需要再按一次 SW1。
-- 若 Windows 上之前开着便携版的 `Start.cmd`，请先关闭旧窗口。Mac 安装器会更新同名的用户级 LaunchAgent。
+<details>
+<summary><strong>屏幕显示「等待采集器连接」时看哪里？</strong></summary>
 
-## 本机数据与后台服务
+运行上表同一入口，把最后的 `install` 换成 `status`。
 
-采集器只读 Codex 会话索引和日志，生成对话标题、状态、用量及额度。仪表盘数据保存在本机，由 Hachimodock 发给 Pico。天气按管理端所在地向 Open-Meteo 查询，只发送城市级坐标，可在 Hachimodock 设置里关闭定位。额度取自 Codex 最近一次写入的观测。
+| 状态输出 | 要检查的事 |
+| --- | --- |
+| `componentImported` | 为 `true` 时，管理端已选中这份组件。 |
+| `registered` 和 `running` | 两项都为 `true` 时，登录启动项和正在运行的采集器均已确认。 |
+| `dataReady` | 为 `true` 时，最近一次采集已读到可用记录。首次扫描需要一些时间。尚无记录时，在本机 Codex 完成一次对话后再查。 |
+| `deviceSync: not_checked` | 请在管理端查看「保存并同步」的完成回执，并在 Pico 打开仪表盘。 |
 
-Windows 的后台项位于「任务计划程序」中，名称以 `HachimoDock Codex Observatory` 开头。Mac 的 LaunchAgent 名为 `local.codex-observatory.collector`。移除后台服务后，如需删除组件，可在 Hachimodock 组件中心移除。运行文件分别保存在 `%LOCALAPPDATA%\HachimoDock\CodexObservatory` 和 `~/.claw-pet/codex-observatory-bridge/`。
+自定义 Codex 历史目录、管理端路径、旧版前台采集器及重试步骤见[安装指南](AGENTS.md)。
+
+</details>
+
+<details>
+<summary><strong>采集器会读取什么？</strong></summary>
+
+采集器只读本机 Codex 会话索引和日志，整理标题、状态、用量与额度。仪表盘数据由这台电脑上的 Hachimodock 发给 Pico。天气查询会向 Open-Meteo 发送城市级坐标。Windows 使用当前用户的任务计划程序，Mac 使用用户级 LaunchAgent。
+
+</details>
