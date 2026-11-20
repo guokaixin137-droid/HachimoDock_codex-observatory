@@ -78,7 +78,7 @@ def install_recipe(system, scratch):
                 "& ([ScriptBlock]::Create([IO.File]::ReadAllText($env:HACHI_TEST_RECIPE)))"]
     else:
         args = ["/bin/sh", str(script)]
-    env = {**os.environ, "HACHI_CODEX_DIR": str(scratch / "Codex sample"), "HACHI_TEST_RECIPE": str(script)}
+    env = {**os.environ, "HACHI_TEST_RECIPE": str(script)}
     run = subprocess.run(args, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                          encoding="utf-8", errors="replace", timeout=360)
     print(run.stdout, flush=True)
@@ -171,13 +171,16 @@ def main():
                 for base in (Path(os.environ[prefix]), Path(os.environ[prefix]) / "Programs"):
                     for app in base.glob("Hachi*"):
                         print("Official client files:", app, [p.name for p in app.glob("*.exe")], flush=True)
-        seed_codex(scratch / "Codex sample")
+        default_history = Path.home() / ".codex"
+        if (default_history / "state_5.sqlite").exists() or (default_history / "sessions").exists():
+            raise RuntimeError("Expected a clean Codex profile on this test machine.")
+        seed_codex(default_history)
         installer = install_recipe(system, scratch)
         initial = wait_for_data(installer)
         telemetry_file = desktop_data / "component-apps/codex-observatory/composition-v2-state.json"
         verify_fixture(telemetry_file, 42, 8)
         # An existing community installation should retain its selection on another install.
-        repeat = run_installer(installer, "install", "--codex-dir", str(scratch / "Codex sample"))
+        repeat = run_installer(installer, "install")
         if repeat.get("selectedHash") != initial["selectedHash"] or not repeat.get("running"):
             raise RuntimeError("Reinstallation lost the component selection or the collector.")
         alternate = scratch / "Other Codex history"
