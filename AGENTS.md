@@ -10,7 +10,7 @@
 
 ## 运行对应系统的整段命令
 
-在工作区之外的新临时目录下载正式发行包，校验 SHA-256，完整解压后运行内置安装器；下列安装器会调用 Hachimodock 导入组件，同时注册、启动并检查后台采集器。发行包自带 Python，无需 Git、GitHub 登录或额外安装 Python。
+下列命令会把正式发行包下载到新的临时目录，校验 SHA-256 后解压。包内安装器会调用 Hachimodock 导入组件，并为当前用户注册、启动和检查后台采集器。发行包自带 Python，无需 Git、GitHub 登录或额外安装 Python。
 
 ### Windows x64 · PowerShell
 

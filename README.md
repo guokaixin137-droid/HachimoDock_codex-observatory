@@ -16,8 +16,8 @@
 
 ```text
 请帮我在这台电脑上安装 HachimoDock 的 Codex 仪表盘。
-仓库 https://github.com/guokaixin137-droid/HachimoDock_codex-observatory
-请按 AGENTS.md 执行我这个系统的安装命令，把组件和后台采集器一起装好。
+安装指南 https://raw.githubusercontent.com/guokaixin137-droid/HachimoDock_codex-observatory/main/AGENTS.md
+请执行指南里对应我这个系统的安装命令，把组件和后台采集器一起装好。
 请检查组件已导入、采集器已启动，并告诉我是否读到了本机 Codex 数据。
 如果 Pico 已连接，也请帮我在 Hachimodock 里完成同步。
 ```
@@ -29,6 +29,8 @@
 | **首页 · 会话与用量** | **按 SW1 · 额度与历史** |
 | :---: | :---: |
 | [![首页示例，最近三条 Codex 对话、今日 Token 和七天趋势](docs/images/dashboard-home.png)](docs/images/dashboard-home.png) | [![Pico 额度页，剩余百分比、下次重置时间和近 53 周活动热力图](docs/images/dashboard-quota.png)](docs/images/dashboard-quota.png) |
+
+短按 **SW1** 可以来回切换。左图是组件首页示例，右图是用 46% 测试额度在 Pico 上截取的画面。
 
 - **对话进度**　最近三条对话各有状态。能一眼看到哪条在思考、哪条等你答复，以及哪条已经完成、停止或出错。
 - **Token 用量**　首页显示今天的输入、输出和总量，柱状图方便对照最近七天。第二页还会汇总这七天的用量。

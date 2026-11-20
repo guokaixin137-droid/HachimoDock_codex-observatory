@@ -120,6 +120,8 @@ def wait_for_data(installer):
 
 
 def main():
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     if (os.environ.get("GITHUB_ACTIONS") != "true" or not os.environ.get("RUNNER_TEMP")
             or os.environ.get("RUNNER_ENVIRONMENT") == "self-hosted"):
         raise SystemExit("This acceptance test requires a disposable GitHub-hosted runner.")
@@ -132,6 +134,11 @@ def main():
     with tempfile.TemporaryDirectory(dir=os.environ["RUNNER_TEMP"]) as directory:
         scratch = Path(directory)
         install_official_client(system, scratch)
+        if system == "windows":
+            for prefix in ("LOCALAPPDATA", "ProgramFiles", "ProgramFiles(x86)"):
+                for base in (Path(os.environ[prefix]), Path(os.environ[prefix]) / "Programs"):
+                    for app in base.glob("Hachi*"):
+                        print("Official client files:", app, [p.name for p in app.glob("*.exe")], flush=True)
         seed_codex(scratch / "Codex sample")
         installer = install_recipe(system, scratch)
         initial = wait_for_data(installer)
