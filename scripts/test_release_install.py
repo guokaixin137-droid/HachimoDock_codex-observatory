@@ -75,8 +75,8 @@ def install_recipe(system, scratch):
     if system == "windows":
         marker = "$installer = Join-Path $payload"
         assert recipe.count(marker) == 1
-        recipe = recipe.replace(marker,
-            "Copy-Item -LiteralPath $env:HACHI_CANDIDATE_TASK -Destination (Join-Path $payload 'pc/windows_service.py')\n" + marker)
+        recipe = recipe.replace(marker, "foreach ($file in 'manage.py','pc/bridge.py','pc/windows_service.py') { "
+            "Copy-Item -LiteralPath (Join-Path $env:HACHI_TEST_SOURCE $file) -Destination (Join-Path $payload $file) }\n" + marker)
     script.write_text(recipe + "\n", encoding="utf-8-sig" if system == "windows" else "utf-8")
     if system == "windows":
         args = ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
@@ -84,8 +84,8 @@ def install_recipe(system, scratch):
                 "& ([ScriptBlock]::Create([IO.File]::ReadAllText($env:HACHI_TEST_RECIPE)))"]
     else:
         args = ["/bin/sh", str(script)]
-    env = {**os.environ, "HACHI_CODEX_DIR": str(scratch / "Codex sample"), "HACHI_TEST_RECIPE": str(script)}
-    env["HACHI_CANDIDATE_TASK"] = str(REPO / "pc/windows_service.py")
+    env = {**os.environ, "HACHI_TEST_RECIPE": str(script)}
+    env["HACHI_TEST_SOURCE"] = str(REPO)
     run = subprocess.run(args, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                          encoding="utf-8", errors="replace", timeout=360)
     print(run.stdout, flush=True)
@@ -178,13 +178,16 @@ def main():
                 for base in (Path(os.environ[prefix]), Path(os.environ[prefix]) / "Programs"):
                     for app in base.glob("Hachi*"):
                         print("Official client files:", app, [p.name for p in app.glob("*.exe")], flush=True)
-        seed_codex(scratch / "Codex sample")
+        default_history = Path.home() / ".codex"
+        if (default_history / "state_5.sqlite").exists() or (default_history / "sessions").exists():
+            raise RuntimeError("Expected a clean Codex profile on this test machine.")
+        seed_codex(default_history)
         installer = install_recipe(system, scratch)
         initial = wait_for_data(installer)
         telemetry_file = desktop_data / "component-apps/codex-observatory/composition-v2-state.json"
         verify_fixture(telemetry_file, 42, 8)
         # An existing community installation should retain its selection on another install.
-        repeat = run_installer(installer, "install", "--codex-dir", str(scratch / "Codex sample"))
+        repeat = run_installer(installer, "install")
         if repeat.get("selectedHash") != initial["selectedHash"] or not repeat.get("running"):
             raise RuntimeError("Reinstallation lost the component selection or the collector.")
         alternate = scratch / "Other Codex history"
@@ -201,6 +204,8 @@ def main():
         if removed["registered"] or removed["running"] or not removed["componentImported"]:
             raise RuntimeError(f"Unexpected state after collector removal: {removed}")
         print("Verified reinstall, moving the download, and stopping the login service.", flush=True)
+    if sys.argv[1:2] == ["--standard-desktop"]:
+        (workspace / "acceptance-complete.txt").write_text("passed", encoding="ascii")
 
 
 if __name__ == "__main__":

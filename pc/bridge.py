@@ -347,6 +347,10 @@ def verify_version():
     return version
 
 
+class CollectorAlreadyRunning(RuntimeError):
+    pass
+
+
 def lock_collector(guard):
     try:
         if sys.platform == "win32":
@@ -359,7 +363,7 @@ def lock_collector(guard):
             fcntl.flock(guard.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError as error:
         if error.errno in (errno.EACCES, errno.EAGAIN, errno.EDEADLK):
-            raise RuntimeError("采集器已经在运行，请查看先前打开的窗口。") from error
+            raise CollectorAlreadyRunning("采集器已经在运行，请查看先前打开的窗口。") from error
         raise
 
 
