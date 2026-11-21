@@ -4,7 +4,7 @@
 
 **Codex 在等你回复吗？今天用了多少 Token？抬眼看一下 Pico。**
 
-[让 Codex 安装](#让-codex-安装) · [看看两个页面](#两个页面) · [下载安装包](https://github.com/guokaixin137-droid/HachimoDock_codex-observatory/releases/tag/v3.1.8-r2)
+[让 Codex 安装](#让-codex-安装) · [看看两个页面](#两个页面) · [下载安装包](https://github.com/guokaixin137-droid/HachimoDock_codex-observatory/releases/tag/v3.1.10)
 
 [![Windows 与 macOS 安装验收](https://github.com/guokaixin137-droid/HachimoDock_codex-observatory/actions/workflows/desktop-install.yml/badge.svg?branch=main)](https://github.com/guokaixin137-droid/HachimoDock_codex-observatory/actions/workflows/desktop-install.yml)
 
@@ -41,8 +41,8 @@
 
 | 你的电脑 | 完整安装包 | 解压后运行 |
 | --- | --- | --- |
-| Windows x64 | [下载 Windows ZIP](https://github.com/guokaixin137-droid/HachimoDock_codex-observatory/releases/download/v3.1.8-r2/codex-observatory-3.1.8-windows-x64.zip) | `.\install-windows.cmd install` |
-| Apple 芯片 Mac | [下载 macOS 压缩包](https://github.com/guokaixin137-droid/HachimoDock_codex-observatory/releases/download/v3.1.8-r2/codex-observatory-3.1.8-macos-arm64.tar.gz) | `./install-macos.command install` |
+| Windows x64 | [下载 Windows ZIP](https://github.com/guokaixin137-droid/HachimoDock_codex-observatory/releases/download/v3.1.10/codex-observatory-3.1.10-windows-x64.zip) | `.\install-windows.cmd install` |
+| Apple 芯片 Mac | [下载 macOS 压缩包](https://github.com/guokaixin137-droid/HachimoDock_codex-observatory/releases/download/v3.1.10/codex-observatory-3.1.10-macos-arm64.tar.gz) | `./install-macos.command install` |
 
 两个包都包含设备组件和电脑采集器。先在同一台电脑安装 Hachimodock，然后完整解压。安装命令也支持 `check` 检查环境、`status` 查看状态、`remove` 停用采集器并移除登录启动项。[Hachimodock 官方客户端](https://github.com/ai-maker-lab/HachimoDock/releases/tag/v0.1.245)
 

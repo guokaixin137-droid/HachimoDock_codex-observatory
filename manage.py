@@ -26,9 +26,9 @@ import windows_service
 from page_feed import SUPPORTED_MANAGERS
 from rollouts import can_read_compressed
 
-VERSION = "3.1.8"
+VERSION = "3.1.10"
 PACKAGE = "codex-observatory.hachiapp"
-PACKAGE_SHA256 = "ecb5b8da7a6d3a647b9e82ba000997b30ca3e81356ef606fe47eaea16ec66849"
+PACKAGE_SHA256 = "5a4f4a64ecba5512e59cd127648dd6ad3d856bde7c237d13b09fbcf3e33f316b"
 PROGRAMS = ("manage.py", "zones/Asia/Shanghai", PACKAGE, *(f"pc/{file}" for file in (*mac.FILES, "windows_service.py")))
 
 

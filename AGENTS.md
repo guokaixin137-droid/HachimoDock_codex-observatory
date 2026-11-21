@@ -21,8 +21,8 @@ $ProgressPreference = 'SilentlyContinue'
 $arch = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
 if ($arch -ne 'AMD64') { throw "This release requires Windows x64 (found $arch)." }
 
-$name = 'codex-observatory-3.1.8-windows-x64.zip'
-$release = 'https://github.com/guokaixin137-droid/HachimoDock_codex-observatory/releases/download/v3.1.8-r2'
+$name = 'codex-observatory-3.1.10-windows-x64.zip'
+$release = 'https://github.com/guokaixin137-droid/HachimoDock_codex-observatory/releases/download/v3.1.10'
 $work = Join-Path ([IO.Path]::GetTempPath()) ('HachimoDock Codex ' + [guid]::NewGuid().ToString('N'))
 $null = New-Item -ItemType Directory -Path $work
 $zip = Join-Path $work $name
@@ -66,8 +66,8 @@ if (($s.componentImported -ne $true) -or ($s.registered -ne $true) -or ($s.runni
     echo 'This release requires an Apple silicon Mac.' >&2
     exit 1
   }
-  name=codex-observatory-3.1.8-macos-arm64.tar.gz
-  release=https://github.com/guokaixin137-droid/HachimoDock_codex-observatory/releases/download/v3.1.8-r2
+  name=codex-observatory-3.1.10-macos-arm64.tar.gz
+  release=https://github.com/guokaixin137-droid/HachimoDock_codex-observatory/releases/download/v3.1.10
   work=$(mktemp -d "${TMPDIR:-/tmp}/HachimoDock Codex.XXXXXXXX")
   cd "$work"
   curl --fail --location --retry 3 --silent --show-error "$release/SHA256SUMS" -o SHA256SUMS
